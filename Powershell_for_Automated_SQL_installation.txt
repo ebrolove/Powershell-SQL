@@ -1,0 +1,386 @@
+TUESDAY, 4 FEBRUARY 2014
+PowerShell Script for SQL Server Cluster/StandAlone unattended Install and uninstall
+For a long time I have been using different scripts for SQL Server install based on the various user requirements, with my latest client requirement I decided to create a master script for unattended install either in Clustered environment or  as Standalone install. The script carters installation of all SQL related services (DB Engine, SSIS, SSAS or SSRS) and Client components including (MDS and DQC) based on user request.  Basic idea was to create a SQL environment on a click of a button by any IT Personnel. 
+
+The script creates a SQL configuration file image for install so we can easily reuse it in case of DR. The script also monitors install the script monitors the Install Log in the \Setup Bootstrap\Log folder and will return the status with relevant errors.
+  
+Using this SQL Server Install Script we perform the following tasks,
+Pre-Install Task – Create SQL Server related directories as mentioned in assumption(See Install Assumptions section).
+SQL Server Services(DB/AS/RS/IS) Stand Alone - Install
+SQL Server Stand Alone –SQL Client Install
+SQL Server Services/SQL Client Stand Alone – Uninstall
+SQL Server Services(DB/AS/RS/IS/Client) Stand Alone Re-Install with an existing SQL Server install Configuration File (DR Recovery)
+SQL Server Services(DB/AS/RS/IS) Failover Cluster – InstallFailoverCluster
+SQL Server Services(DB/AS/RS/IS) Failover Cluster – AddNode
+SQL Server Services(DB/AS/RS/IS) Failover Cluster – RemoveNode
+SQL Server Services Failover Cluster – SQL Client Install
+SQL Server Services Failover Cluster – SQL Client  Uninstall
+SQL Server Services(DB/AS/RS/IS/Client) Failover Cluster Re-Install with an existing SQL Server install Configuration File (Disaster Recovery) 
+Install Script:-
+Download the SQL Server Installation Power Shell Script from - SQLInstall.ps1
+Please download the script using the link 
+https://drive.google.com/file/d/0Byz0IoWq6fw-aTZTaExsdE5rbm8/view?usp=sharing
+(Google Drive may say "no preview" as its a Power shell script, click the download button to download the script to your local machine)
+Note:- The Script has been designed only for SQL Server 2012/2008R2 or 2008. There is a new version of the script added recently to the blog which has SQL 2014 and SQL 2016 support (http://www.sqltechnet.com/2015/09/update-powershell-script-for-sql-server.html).
+
+Install Help:-
+Install Assumptions:-
+Based on the best practices followed in the industry I have detailed directory structure the install script will create and will be used by SQL Server.  The drives in which the directories will be created is based on the configuration file for SQL Install.
+Usage
+Default Instance
+Named Instance
+SQL Binary
+SQL Install Default (C:\Program Files\Microsoft SQL Server)
+SQL install Default (C:\Program Files\Microsoft SQL Server)
+User and System database data Files
+< SQLUSERDBDRIVE> \<Servername>\Data
+
+< SQLUSERDBDRIVE>\<Servername_InstanceName>\Data
+OLAP Data File
+< ASDATADRIVE>\<Servername>\OLAPData
+
+< ASDATADRIVE>\<Servername_InstanceName>\OLAPData
+Backup and DBA Maintenance related files
+<SQLBACKUPDRIVE>\<Servername>\Backup
+<SQLBACKUPDRIVE>\<Servername>\SQLAdmin
+
+<SQLBACKUPDRIVE>\<Servername_InstanceName>\Backup
+<SQLBACKUPDRIVE>\< Servername_InstanceName >\SQLAdmin
+
+OLAP Backup
+<ASBACKUPDRIVE>\<Servername>\OLAPBackup
+
+<ASBACKUPDRIVE>\<Servername_InstanceName>\OLAPBackup
+
+User and System database Log Files
+
+<SQLUSERLOGDRIVE >\<Servername>\TLog
+
+<SQLUSERLOGDRIVE>\<Servername_InstanceName>\TLog
+OLAP Log File
+<ASLOGDRIVE>\<Servername>\OLAPLog
+
+<ASLOGDRIVE>\<Servername_InstanceName>\OLAPLog
+Paging File Drive
+System Default
+System Default
+TempDB data file
+<SQLTEMPDBDATADRIVE>\<Servername>\Data
+
+<SQLTEMPDBDATADRIVE >\<Servername_InstanceName>\Data
+OLAP Temp
+< ASTEMPDRIVE >\<Servername>\OLAPTemp
+
+< ASTEMPDRIVE >\<Servername_InstanceName>\ OLAPTemp
+
+
+
+I came up with an Idea of using 2 parameters; a user configuration file for user input and an Action Parameter to carter all requirements,
+
+Script Help:- 
+SQLInstall.ps1 -c <User Input File Full UNC Path> -a <Action>
+
+Parameter 1:- -c to User Input File for the Install
+
+Parameter 2:- -a to Specify the Action of Install; The Value of -a can be
+     Only Install, InstallFailoverCluster, AddNode, RemoveNode, 
+     Uninstall, PreInstall, PostInstall or Reinstall
+
+Example 1:- .\SQLInstall.ps1 -c c:\SQLAutoInstall.ini -a Install
+Example 2:- .\SQLInstall.ps1 -c c:\Install.ini –a InstallFailoverCluster
+Example 3:- .\SQLInstall.ps1 -c c:\SQLAutoInstall.ini -a AddNode
+Example 4:- .\SQLInstall.ps1 -c c:\SQLAutoInstall.ini -a RemoveNode
+Example 5:- .\SQLInstall.ps1 -c c:\SQLAutoInstallConfig.ini -a UnInstall
+Example 6:- .\SQLInstall.ps1 -c U:\Admin\Install.ini –a ReInstall
+Example 7:- .\SQLInstall.ps1 -c U:\Admin\Install.ini –a PreInstall
+
+Parameter “-a” Help:  Action:-
+   Action specifies in which mode you want the script to run, Various Actions are Explained Below
+ACTION
+DESCRIPTION
+-a PreInstall
+Create SQL Server related as mention in Install assumption section on the drives specified in the user input file.
+-a Install
+PreInstall  Action + Install SQL Server Services(DB/AS/RS/IS) and SQL Server Client on a Stand Alone server depending on User input file Configuration + PostInstall Action
+-a InstallFailoverCluster
+PreInstall  Action + Install Failover Cluster SQL Server Services(DB/AS/RS/IS) and SQL Server Client  depending on User input file Configuration + PostInstall Action
+-a AddNode
+Add a node to an existing cluster specified in the user input file
+-a RemoveNode
+Remove a node to an existing cluster specified in the user input file
+-a Uninstall
+Uninstall SQL Server Services(DB/AS/RS/IS) and SQL Server Client on a Stand Alone server depending on User input file Configuration and Uninstall SQL Server Client on Failover SQL clusters.
+-a Reinstall
+Used for DR purpose to Install SQL Server components both Standalone and Failover Cluster with an already existing SQL Server install Configuration File created during the Initial Server Build.
+ 
+Parameter “-c” Help:  User Input File Format:-
+
+Sample User Input File,
+User Input file format is very critical to successful execution of the unattended install script, details of every entry in user Input file is specified in the below table in this section,
+#SQL Server Unattended Configuration File
+
+SQL_SERVER_NAME=TESTSQLSERVER
+SQLVERSION=SQL2012
+INSTANCE_NAME=INST1
+SQLINSTALL=TRUE
+SQLCLIENTINSTALL=TRUE
+ASINSTALL=TRUE
+RSINSTALL=FALSE
+ISINSTALL=FALSE
+DQCINSTALL=FALSE
+MDSINSTALL=FALSE
+
+#Pre-InstallConfig-SQL DBEngine
+
+SQLUSERDBDRIVE=D
+SQLUSERLOGDRIVE=L
+SQLBACKUPDRIVE=H
+SQLTEMPDBDATADRIVE=T
+SQLTEMPDBLOGDRIVE=L
+SQLSVCACCT=TESTDOMAIN\SQLDBServiceAccount
+SQLSVCPWD=Password
+SQLCOLLATION=(null)
+SQLSYSADMINACCOUNTS= TESTDOMAIN\SQLDBAADGroup
+SQLSVCSTARTUPTYPE=Automatic
+SAPWD=Password
+
+#Pre-InstallConfig-AS Engine
+
+ASDATADRIVE=D
+ASLOGDRIVE=L
+ASBACKUPDRIVE=H
+ASTEMPDRIVE=T
+ASSVCACCT= TESTDOMAIN\SQLASServiceAccount
+ASSVCPWD=Password
+ASCOLLATION=Latin
+ASSYSADMINACCOUNTS= TESTDOMAIN\SQLDBAADGroup
+ASSERVERMODE=MULTIDIMENSIONAL
+ASSVCSTARTUPTYPE=Automatic
+
+#Pre-InstallConfig-IS Engine
+
+ISAVCACCT= TESTDOMAIN\SQLISServiceAccount
+ISSVCPWD=Password
+ISSVCSTARTUPTYPE=Automatic
+
+#Pre-InstallConfig-RS Engine
+
+RSSVCACCT= TESTDOMAIN\SQLRSServiceAccount
+RSSVCPWD=Password
+
+#Pre-InstallConfig-Cluster
+
+FAILOVERCLUSTERDISKS="Cluster Disk 1" "Cluster Disk 2"
+FAILOVERCLUSTERGROUP=SQL Server (INST1)
+FAILOVERCLUSTERIPADDRESSES=IPv4;10.0.0.1;Public Network;255.255.255.0
+FAILOVERCLUSTERNETWORKNAME=SQLVIRTUALSERVERNAME
+
+#Install PowerShell Config
+
+SQLSETUPEXEPATH=Y:\SQLEXECUTABLEPATH
+REINSTALLFILEPATH=(null)
+
+ Note: - The Default value of every configuration is (null) do not leave any value blank, instead update to (null).
+  
+Input Configuration
+Description
+Install mode Usage (Parameter 2)
+Values
+SQL_SERVER_NAME
+Physical Server name for Stand Alone Install (without Instance name)
+
+Cluster Network Name in case of Failover Cluster Install
+All Install modes
+<SQL_SERVER_NAME>, cannot be (null)
+SQLVERSION
+Value should be  either SQL2008 or SQL2012
+All Install modes
+SQL2008 or SQL2012, cannot be (null)
+INSTANCE_NAME
+MSSQLSERVER for Default instance
+<InstanceName> for named instance
+All Install modes
+MSSQLSERVER or <InstanceName>, cannot be (null)
+SQLINSTALL
+Set this TRUE to for SQL DB Engine install/Uninstall for both Stand Alone and Clusters.
+Install, InstallFailoverCluster, AddNode, RemoveNode or Uninstall.
+TRUE or FALSE, cannot be (null)
+SQLCLIENTINSTALL
+Set this TRUE to for SQL Client install/Uninstall for both Stand Alone and Clusters.
+Install, InstallFailoverCluster, AddNode, RemoveNode or Uninstall.
+TRUE or FALSE, cannot be (null)
+ASINSTALL
+Set this TRUE to for SQL Analysis Services install/Uninstall for both Stand Alone and Clusters.
+Install, InstallFailoverCluster, AddNode, RemoveNode or Uninstall.
+TRUE or FALSE, cannot be (null)
+RSINSTALL
+Set this TRUE to for SQL Reporting Services install/Uninstall for both Stand Alone and Clusters.
+Install, InstallFailoverCluster, AddNode, RemoveNode or Uninstall.
+TRUE or FALSE, cannot be (null)
+ISINSTALL
+Set this TRUE to for SQL Integration Services install/Uninstall for both Stand Alone and Clusters.
+Install, InstallFailoverCluster, AddNode, RemoveNode or Uninstall.
+TRUE or FALSE, cannot be (null)
+DQCINSTALL
+(Only for SQL 2012)
+Set this TRUE to for Data Quality Client install/Uninstall for both Stand Alone and Clusters.
+Install, InstallFailoverCluster, AddNode, RemoveNode or Uninstall.
+SQL2012:
+TRUE or FALSE, cannot be (null)
+SQL2008:
+FALSE, cannot be (null)
+MDSINSTALL
+(Only for SQL 2012)
+Set this TRUE to for Master Data Services install/Uninstall for both Stand Alone and Clusters.
+Install, InstallFailoverCluster, AddNode, RemoveNode or Uninstall.
+SQL2012:
+TRUE or FALSE, cannot be (null)
+SQL2008:
+FALSE, cannot be (null)
+SQLUSERDBDRIVE
+SQL Server User database data file drive.
+Install, InstallFailoverCluster
+Drive name (Eg:- D) or
+Can be (null) to set SQL Server Default
+SQLUSERLOGDRIVE
+SQL Server User database Tlog file drive.
+Install, InstallFailoverCluster
+Drive name (Eg:- L) or
+Can be (null) to set SQL Server Default
+SQLBACKUPDRIVE
+SQL Server Backup drive.
+Install, InstallFailoverCluster
+Drive name (Eg:- H) or
+Can be (null) to set SQL Server Default
+SQLTEMPDBDATADRIVE
+SQL Server Tempdb data file drive
+Install, InstallFailoverCluster
+Drive name (Eg:- T) or
+Can be (null) to set SQL Server Default
+SQLTEMPDBLOGDRIVE
+SQL Server Tempdb TLog file drive
+Install, InstallFailoverCluster
+Drive name (Eg:- L) or
+Can be (null) to set SQL Server Default
+SQLSVCACCT
+SQL Server Service Account
+Install, InstallFailoverCluster,
+AddNode
+AD Service account or Can be (null) to set SQL Server Default
+SQLSVCPWD
+Above SQL Server Service Account Password
+Install, InstallFailoverCluster,
+AddNode
+Above AD Service account Password, Cannot be (null) if SQLSVCACCT is specified.
+SQLCOLLATION
+SQL Server Collation
+Install, InstallFailoverCluster
+<CollationName> or Can be (null) to set SQL Server Default
+SQLSYSADMINACCOUNTS
+Default SQL Server Admin AD Account
+Install, InstallFailoverCluster
+Usually SQL DB Administrators TESTDOMAIN\SQLDBAADGroup
+SQLSVCSTARTUPTYPE
+SQL Server Service Start up type
+Install
+Automatic , Manual or Can be (null) to set SQL Server Default
+SAPWD
+sa Login Password for SQL Server
+Install, InstallFailoverCluster
+<Password>, cannot be (null) as Mixed mode authentication is default Authentication mode.
+ASDATADRIVE
+Analysis Server Data Drive
+Install, InstallFailoverCluster
+Drive name (Eg:- D) or
+Can be (null) to set SQL Server Default
+ASLOGDRIVE
+Analysis Server Log Drive
+Install, InstallFailoverCluster
+Drive name (Eg:- L) or
+Can be (null) to set SQL Server Default
+ASBACKUPDRIVE
+Analysis Server Backup Drive
+Install, InstallFailoverCluster
+Drive name (Eg:- H) or
+Can be (null) to set SQL Server Default
+ASTEMPDRIVE
+Analysis Server Temp Drive
+Install, InstallFailoverCluster
+Drive name (Eg:- T) or
+Can be (null) to set SQL Server Default
+ASSVCACCT
+Analysis Server Service Account
+Install, InstallFailoverCluster,
+AddNode
+AD Service account or Can be (null) to set SQL Server Default
+ASSVCPWD
+Above Analysis Server Service Account Password
+Install, InstallFailoverCluster,
+AddNode
+Above AD Service account Password, Cannot be (null) if ASSVCACCT is specified.
+ASCOLLATION
+Analysis Server Collation
+Install, InstallFailoverCluster
+<CollationName> or Can be (null) to set SQL Server Default
+ASSYSADMINACCOUNTS
+Default  Analysis Server Admin AD Account
+Install, InstallFailoverCluster
+Usually SQL DB Administrators TESTDOMAIN\SQLDBAADGroup
+ASSERVERMODE
+(Only for SQL 2012)
+Analysis Server Install Mode MULTIDIMENSIONAL, POWERPIVOT or TABULAR
+Install, InstallFailoverCluster
+Value can be either MULTIDIMENSIONAL, POWERPIVOT or TABULAR. Can be (null) to set Analysis Server Default
+ASSVCSTARTUPTYPE
+Analysis Server Service Start up type
+Install
+Automatic , Manual or Can be (null) to set SQL Server Default
+ISAVCACCT
+Integration Server Service Account
+Install, InstallFailoverCluster
+AD Service account or Can be (null) to set SQL Server Default
+ISSVCPWD
+Above Integration Server Service Account Password
+Install, InstallFailoverCluster,
+AddNode
+Above AD Service account Password, Cannot be (null) if ISAVCACCT is specified.
+ISSVCSTARTUPTYPE
+Integration Server Service Start up type
+Install
+Automatic , Manual or Can be (null) to set SQL Server Default
+RSSVCACCT
+Reporting Server Service Account
+Install, InstallFailoverCluster
+AD Service account or Can be (null) to set SQL Server Default
+RSSVCPWD
+Above Reporting Server Service Account Password
+Install, InstallFailoverCluster,
+AddNode
+Above AD Service account Password, Cannot be (null) if RSSVCACCT is specified.
+FAILOVERCLUSTERDISKS
+Specifies the list of shared disks to be included in the SQL Server failover cluster resource group.
+InstallFailoverCluster
+
+List of Shared Disks to be included, Eg:- ("Cluster Disk 4" "Cluster Disk 7").Cannot be (null) for Cluster Install only.
+FAILOVERCLUSTERGROUP
+Specifies the name of the resource group to be used for the SQL Server failover cluster. It can be the name of an existing cluster group or the name of a new resource group.
+InstallFailoverCluster, AddNode
+<FAILOVERCLUSTERGROUPName>. Cannot be (null) for Cluster Install only.
+FAILOVERCLUSTERIPADDRESSES
+Specifies an encoded IP address. The encodings are semicolon-delimited (;) and follow the format <IP Type>;<address>;<network name>;<subnet mask>.
+InstallFailoverCluster
+<FAILOVERCLUSTERIPADDRESSESNAME> Cannot be (null) for Cluster Install only.
+FAILOVERCLUSTERNETWORKNAME
+Specifies the network name for the new SQL Server failover cluster. This name is used to identify the new SQL Server failover cluster instance on the network.
+InstallFailoverCluster, AddNode,RemoveNode
+<FAILOVERCLUSTERNETWORKNAME> Cannot be (null) for Cluster Install only.
+SQLSETUPEXEPATH
+Location of SQL Server Installation source binary folder.
+All Install modes
+<Full UNC Directory path/Share Directory Path> Cannot be (null)
+REINSTALLFILEPATH
+Location where the Unattended Install configuration File is Stored for DR
+Reinstall
+<Full UNC File path/Share File Path>. Cannot be (null) for Reinstall mode alone.
+
+Hope this script helps to automate your SQL Install completely. As I mentioned earlier  this script has been designed only for SQL Server 2012/2008R2 or 2008. There is a new version of the script added recently to the blog which has SQL 2014 and SQL 2016 support (http://www.sqltechnet.com/2015/09/update-powershell-script-for-sql-server.html).
